@@ -94,9 +94,9 @@ int main(int argc, char* argv[])
                 printf("\nNew client connections client[%d] %s:%d\n", cliSocket,
                        inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
 
-                ev.events = EPOLLIN | EPOLLET; // 设置关心可读状态和边缘触发模式
+                ev.events = EPOLLIN | EPOLLET; // 设置边缘触发模式
                 ev.data.fd = cliSocket;
-                // 把心连接描述符加到epoll实例感兴趣列表
+                // 把新连接描述符加到epoll实例感兴趣列表
                 if (epoll_ctl(epollfd, EPOLL_CTL_ADD, cliSocket, &ev) == -1) {
                     perror("epoll_ctl: cliSocket");
                     exit(1);
