@@ -17,15 +17,17 @@ int main(int argc, char* argv[])
 
     if (argc > 2)
         printf("param err:\nUsage:\n\t%s port | %s\n\n", argv[0], argv[0]);
-    if (argc == 2) SERVER_PORT = atoi(argv[1]);
 
-    int nbytes;
-    char buffer[BUFF_SIZE];
+    if (argc == 2)
+        SERVER_PORT = atoi(argv[1]);
 
-    int servSocket, cliSocket;
+    int nbytes = 0;
+    int cliSocket = 0;
+    int servSocket = 0;
+    char buffer[BUFF_SIZE] = { 0 };
     socklen_t addrLen = 0;
-    struct sockaddr_in servAddr = { 0 };
     struct sockaddr_in cliAddr = { 0 };
+    struct sockaddr_in servAddr = { 0 };
 
     struct epoll_event ev, readyEvents[MAX_EVENTS];
     int nfds, epollfd;
