@@ -17,31 +17,33 @@ int main(int argc, char** argv)
 
     if (argc > 2) {
         printf("param err:\nUsage:\n\t%s port | %s\n\n", argv[0], argv[0]);
+        return -1;
     }
 
     if (argc == 2) {
         SERV_PORT = atoi(argv[1]);
     }
 
+    printf("Listen Port: %d\nListening ...\n", SERV_PORT);
+
     int i, maxi, nready;
     int servSocket, cliSocket;
     ssize_t nbytes;
     char buf[BUFF_SIZE];
-    socklen_t addrLen;
     struct pollfd client[OPEN_MAX];
     struct sockaddr_in cliAddr, servAddr;
 
     if ((servSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("socket");
-        exit(1);
+        printf("socket\n");
+        return -1;
     }
 
     int optval = 1;
     if (setsockopt(servSocket, SOL_SOCKET, SO_REUSEADDR, &optval,
                    sizeof(optval))
         < 0) {
-        perror("setsockopt");
-        exit(0);
+        printf("setsockopt error\n");
+        return -1;
     }
 
     bzero(&servAddr, sizeof(servAddr));
@@ -50,47 +52,51 @@ int main(int argc, char** argv)
     servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(servSocket, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0) {
-        perror("bind");
-        exit(1);
+        printf("bind\n");
+        return -1;
     }
 
     if (listen(servSocket, BACKLOG) < 0) {
-        perror("listen err");
-        exit(1);
+        printf("listen err\n");
+        return -1;
     }
-    printf("Listen Port: %d\nListening ...\n", SERV_PORT);
 
-    // 先把listen的描述符放进数组
+    // add listen socket fd to client buffer[0]
     client[0].fd = servSocket;
-    client[0].events = POLLRDNORM; // 关注可读状态
-    // 初始化此数组
+    client[0].events = POLLRDNORM;
+
     for (i = 1; i < OPEN_MAX; i++) {
         client[i].fd = -1; /* -1 indicates available entry */
     }
     maxi = 0;              /* max index into client[] array */
 
     for (;;) {
-        // 开始监听啦~
-        nready = poll(client, maxi + 1, -1);
+        int timeout_ms = 2000;
+        nready = poll(client, maxi + 1, timeout_ms);
         if (nready < 0) {
-            printf("poll err");
-            exit(1);
+            printf("poll err\n");
+            return -1;
+        } else if (nready == 0) {
+            printf("poll timeout\n");
+            continue;
         }
-        // servSocket可读，说明有新链接来了
+
+        // check a new accept socket fd from client buffer[0]
         if (client[0].revents & POLLRDNORM) {
-            addrLen = sizeof(cliAddr);
+            socklen_t addrLen = sizeof(cliAddr);
             if ((cliSocket
                  = accept(servSocket, (struct sockaddr*)&cliAddr, &addrLen))
                 < 0) {
-                printf("accept err");
-                exit(1);
+                printf("accept err\n");
+                return -1;
             }
 
             for (i = 1; i < OPEN_MAX; i++) {
                 if (client[i].fd < 0) {
-                    client[i].fd
-                        = cliSocket; // 保存客户端连接的描述符，按顺序放在数组中
-                    client[i].events = POLLRDNORM; // 还是关注是否可读
+                    // save connect socket fd to client buffer
+                    client[i].fd = cliSocket;
+                    /* Normal data may be read. */
+                    client[i].events = POLLRDNORM;
                     break;
                 }
             }
@@ -99,7 +105,7 @@ int main(int argc, char** argv)
                    inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
 
             if (i == OPEN_MAX) {
-                printf("too many clients");
+                printf("too many clients\n");
             }
 
             if (i > maxi) {
@@ -111,20 +117,22 @@ int main(int argc, char** argv)
             }
         }
 
-        // 循环检查所有的客户端连接
+        // check all connect client socket fd
         for (i = 1; i <= maxi; i++) {
-            if ((cliSocket = client[i].fd) < 0) continue;
+            if ((cliSocket = client[i].fd) < 0) {
+                continue;
+            }
 
             if (client[i].revents & (POLLRDNORM | POLLERR)) {
                 memset(buf, 0, BUFF_SIZE);
                 nbytes = recv(cliSocket, buf, BUFF_SIZE, 0);
                 if (nbytes < 0) {
-                    printf("recv err");
+                    printf("recv err\n");
                     continue;
                 } else if (nbytes == 0) {
                     printf("client[%d] closed connection\n", i);
                     close(cliSocket);
-                    client[i].fd = -1; // 客户端断开连接，重置标志位
+                    client[i].fd = -1;
                 } else {
                     printf("\nFrom client[%d]\n", i);
                     printf("Recv: %sLength: %d\n\n", buf, (int)nbytes);
