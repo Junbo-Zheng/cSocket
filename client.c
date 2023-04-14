@@ -29,30 +29,34 @@ int main(int argc, char* argv[])
         // Do nothing by default
     }
 
-    int fd = -1;
-    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    printf("Connect to host %s:%d ...\n", SERVER_IP, SERVER_PORT);
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
         printf("socket err\n");
-        exit(1);
+        return -1;
     }
 
     struct sockaddr_in servAddr;
     servAddr.sin_family = AF_INET;
     servAddr.sin_port   = htons(SERVER_PORT);
-    //    servAddr.sin_addr.s_addr = inet_addr(SERVER_IP);    //Outdated method
+//    servAddr.sin_addr.s_addr = inet_addr(SERVER_IP);    //Outdated method
     inet_aton(SERVER_IP, &servAddr.sin_addr);
 
     if (connect(fd, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0) {
         printf("connect err\n");
-        exit(1);
+
+        return -1;
     }
 
-    printf("Connect to host %s:%d ...\n", SERVER_IP, SERVER_PORT);
-
     while (1) {
-        char* buf = "Hello Server, I am Client";
-        int len = strlen(buf);
+        static uint32_t count = 1;
+        char buf[128] = "Hello Server, I am Client.";
+        sprintf(buf + strlen(buf), "%d\n", count++);
+
+        int len = (int)strlen(buf);
         if (send(fd, buf, len, 0) == len) {
-            printf("Send len %d ok\n", len);
+            printf("send len %d ok\n", len);
         } else {
             printf("send err\n");
             break;

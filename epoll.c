@@ -15,11 +15,16 @@ int main(int argc, char* argv[])
 {
     int SERVER_PORT = DEFAULT_PORT;
 
-    if (argc > 2)
+    if (argc > 2) {
         printf("param err:\nUsage:\n\t%s port | %s\n\n", argv[0], argv[0]);
+        return -1;
+    }
 
-    if (argc == 2)
+    if (argc == 2) {
         SERVER_PORT = atoi(argv[1]);
+    }
+
+    printf("Listen Port: %d\nListening ...\n", SERVER_PORT);
 
     int nbytes = 0;
     int cliSocket = 0;
@@ -33,94 +38,97 @@ int main(int argc, char* argv[])
     int nfds, epollfd;
 
     if ((servSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("socket err");
-        exit(1);
+        printf("socket err\n");
+        return -1;
     }
 
     int optval = 1;
     if (setsockopt(servSocket, SOL_SOCKET, SO_REUSEADDR, &optval,
                    sizeof(optval))
         < 0) {
-        perror("setsockopt");
-        exit(0);
+        printf("setsockopt error\n");
+        return -1;
     }
 
     bzero(&servAddr, sizeof(servAddr));
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(SERVER_PORT);
+    servAddr.sin_family      = AF_INET;
+    servAddr.sin_port        = htons(SERVER_PORT);
     servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(servSocket, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0) {
-        perror("bind");
-        exit(1);
+        printf("bind error\n");
+        return -1;
     }
 
     if (listen(servSocket, BACKLOG) < 0) {
-        perror("listen");
-        exit(1);
+        printf("listen error\n");
+        return -1;
     }
-    printf("Listen Port: %d\nListening ...\n", SERVER_PORT);
 
-    // 创建一个epoll实例
     if ((epollfd = epoll_create1(0)) == -1) {
-        perror("epoll_create");
-        exit(1);
+        printf("epoll_create error\n");
+        return -1;
     }
 
-    // ev是一个临时的变量，设置关心的描述符和关心的事件，然后把此结构与epoll实例绑定
     ev.events = EPOLLIN;
     ev.data.fd = servSocket;
-    // 给epoll实例感兴趣列表添加一个事件
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, servSocket, &ev) == -1) {
-        perror("epoll_ctl");
-        exit(1);
+        printf("epoll_ctl error\n");
+        return -1;
     }
 
     for (;;) {
-        // 等待epollfd表示的epoll实例中的事件变化，返回准备好的事件集合readyEvents
-        if ((nfds = epoll_wait(epollfd, readyEvents, MAX_EVENTS, -1)) == -1) {
-            perror("epoll_wait");
-            exit(1);
+        int timeout_ms = 2000;
+
+        // check all epollfd poll in event
+        if ((nfds = epoll_wait(epollfd, readyEvents, MAX_EVENTS, timeout_ms))
+            == -1) {
+            printf("epoll_wait error\n");
+            return -1;
+        }
+
+        if (nfds == 0) {
+            printf("epoll_wait timeout\n");
+            continue;
         }
 
         for (int n = 0; n < nfds; n++) {
-            // 有新连接到来了
+            // check a new accept socket fd
             if (readyEvents[n].data.fd == servSocket) {
                 cliSocket
                     = accept(servSocket, (struct sockaddr*)&cliAddr, &addrLen);
                 if (cliSocket == -1) {
-                    perror("accept");
-                    exit(1);
+                    printf("accept error\n");
+                    return -1;
                 }
 
-                printf("\nNew client connections client[%d] %s:%d\n", cliSocket,
+                printf("New client connections client[%d] %s:%d\n", cliSocket,
                        inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
 
-                ev.events = EPOLLIN | EPOLLET; // 设置边缘触发模式
+                // set trigger mode, LT is by default
+                ev.events = EPOLLIN | EPOLLET;    // edge-triggered
                 ev.data.fd = cliSocket;
-                // 把新连接描述符加到epoll实例感兴趣列表
+                // add a new connect socket fd to event poll list
                 if (epoll_ctl(epollfd, EPOLL_CTL_ADD, cliSocket, &ev) == -1) {
-                    perror("epoll_ctl: cliSocket");
-                    exit(1);
+                    printf("epoll_ctl: cliSocket error\n");
+                    return -1;
                 }
             } else {
-                // 已有连接发数据过来了，开始接收数据~
                 cliSocket = readyEvents[n].data.fd;
 
                 memset(buffer, 0, BUFF_SIZE);
-                /* recv data */
                 nbytes = recv(cliSocket, buffer, sizeof(buffer), 0);
                 if (nbytes < 0) {
-                    perror("recv");
+                    printf("recv error\n");
                     continue;
                 } else if (nbytes == 0) {
                     printf("\nDisconnect fd[%d]\n", cliSocket);
                     close(cliSocket);
-                    // 关闭文件描述符epoll实例会自动移除此描述符，
-                    // 也可以使用EPOLL_CTL_DEL手动移除
+                    // close socket fd, epoll will remove this descriptor automatically
+                    // option use EPOLL_CTL_DEL to remove manually
                 } else {
-                    printf("\nFrom fd[%d]", cliSocket);
-                    printf("\nRecv: %sLength: %d\n\n", buffer, nbytes);
+                    printf("From fd[%d]\n", cliSocket);
+                    printf("Recv: %sLength: %d\n\n", buffer, nbytes);
                 }
             }
         }
