@@ -13,9 +13,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install cmake gcc
+          sudo apt-get install cmake make gcc -y
       - name: build project
         run: |
           cmake -H. -Bbuild
-          cd build
-          make -j16
+          cmake --build build -j

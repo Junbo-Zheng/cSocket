@@ -4,7 +4,6 @@
 #include <unistd.h>
 
 #include <arpa/inet.h>
-#include <netdb.h>
 #include <sys/select.h>
 
 #define BACKLOG 5

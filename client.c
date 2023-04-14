@@ -17,20 +17,21 @@ int main(int argc, char* argv[])
     if (argc > 3) {
         printf("param err:\nUsage: %s ip port | %s port | %s\n", argv[0],
                argv[0], argv[0]);
-    } else if (argc == 3) {
-        SERVER_IP = argv[1];
+        return -1;
+    }
+
+    if (argc == 3) {
+        SERVER_IP   = argv[1];
         SERVER_PORT = atoi(argv[2]);
     } else if (argc == 2) {
         SERVER_PORT = atoi(argv[1]);
     } else {
-        // Do nothing
+        // Do nothing by default
     }
 
-    int cliSocket;
-    char* sendbuf = "Hello Server, I am Client.";
-
-    if ((cliSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("socket err");
+    int fd = -1;
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("socket err\n");
         exit(1);
     }
 
@@ -40,26 +41,26 @@ int main(int argc, char* argv[])
     //    servAddr.sin_addr.s_addr = inet_addr(SERVER_IP);    //Outdated method
     inet_aton(SERVER_IP, &servAddr.sin_addr);
 
-    if (connect(cliSocket, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0) {
-        printf("connect err");
+    if (connect(fd, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0) {
+        printf("connect err\n");
         exit(1);
     }
 
-    printf("Connect with destination host %s:%d ...\n\n", SERVER_IP,
-           SERVER_PORT);
+    printf("Connect to host %s:%d ...\n", SERVER_IP, SERVER_PORT);
 
     while (1) {
-        int num = send(cliSocket, sendbuf, strlen(sendbuf) + 1, 0);
-        if (num == (int)strlen(sendbuf) + 1) {
-            printf("Send: Hello Server, I am Client.\nlength:%d\n\n", num);
-        }
-        else {
+        char* buf = "Hello Server, I am Client";
+        int len = strlen(buf);
+        if (send(fd, buf, len, 0) == len) {
+            printf("Send len %d ok\n", len);
+        } else {
             printf("send err\n");
+            break;
         }
 
-        sleep(1);
+        sleep(3);
     }
 
-    close(cliSocket);
+    close(fd);
     return 0;
 }
